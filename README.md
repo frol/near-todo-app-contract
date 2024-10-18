@@ -1,6 +1,12 @@
 # todo-app-contract
 
-cargo-near-new-project-description
+Features:
+
+* Add new todo
+* List all todos
+* Mark todo as done
+* Delete todo
+* Edit todo
 
 ## How to Build Locally?
 

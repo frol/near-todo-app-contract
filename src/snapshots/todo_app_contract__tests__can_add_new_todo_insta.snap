@@ -1,0 +1,11 @@
+---
+source: src/lib.rs
+expression: contract.list_todos()
+---
+[
+  {
+    "todo_id": 0,
+    "text": "Write todo app",
+    "status": "Pending"
+  }
+]

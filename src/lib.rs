@@ -1,33 +1,89 @@
 // Find all our documentation at https://docs.near.org
 use near_sdk::{log, near};
 
+type TodoId = u64;
+
 // Define the contract structure
+#[derive(near_sdk::PanicOnDefault)]
 #[near(contract_state)]
 pub struct Contract {
-    greeting: String,
+    todos: std::collections::HashMap<TodoId, Todo>,
+    next_todo_id: TodoId,
 }
 
-// Define the default, which automatically initializes the contract
-impl Default for Contract {
-    fn default() -> Self {
-        Self {
-            greeting: "Hello".to_string(),
-        }
-    }
+#[derive(Clone)]
+#[near(serializers = ["json", "borsh"])]
+pub enum TodoStatus {
+    Pending,
+    Completed,
 }
 
-// Implement the contract structure
+#[derive(Clone)]
+#[near(serializers = ["json", "borsh"])]
+pub struct Todo {
+    text: String,
+    status: TodoStatus,
+}
+
+#[near(serializers = ["json"])]
+pub struct TodoWithId {
+    todo_id: TodoId,
+    #[serde(flatten)]
+    todo: Todo,
+}
+
 #[near]
 impl Contract {
-    // Public method - returns the greeting saved, defaulting to DEFAULT_GREETING
-    pub fn get_greeting(&self) -> String {
-        self.greeting.clone()
+    #[init]
+    pub fn new() -> Self {
+        Self {
+            todos: std::collections::HashMap::new(),
+            next_todo_id: 0,
+        }
     }
 
-    // Public method - accepts a greeting, such as "howdy", and records it
-    pub fn set_greeting(&mut self, greeting: String) {
-        log!("Saving greeting: {greeting}");
-        self.greeting = greeting;
+    /// Add new todo
+    pub fn add_todo(&mut self, text: String) -> TodoId {
+        let todo = Todo {
+            text,
+            status: TodoStatus::Pending,
+        };
+        let todo_id = self.next_todo_id;
+        self.todos.insert(todo_id, todo);
+        self.next_todo_id += 1;
+        todo_id
+    }
+
+    /// List all todos
+    pub fn list_todos(&self) -> Vec<TodoWithId> {
+        self.todos
+            .iter()
+            .map(|(todo_id, todo)| TodoWithId {
+                todo_id: *todo_id,
+                todo: todo.clone(),
+            })
+            .collect()
+    }
+
+    /// Change todo status
+    pub fn complete_todo_status(&mut self, todo_id: TodoId, status: TodoStatus) {
+        if let Some(todo) = self.todos.get_mut(&todo_id) {
+            todo.status = status;
+        }
+    }
+
+    /// Delete todo
+    pub fn delete_todo(&mut self, todo_id: TodoId) {
+        self.todos.remove(&todo_id);
+    }
+
+    /// Edit todo
+    pub fn edit_todo_text(&mut self, todo_id: TodoId, text: String) {
+        let Some(todo) = self.todos.get_mut(&todo_id) else {
+            near_sdk::env::panic_str("Todo not found");
+        };
+
+        todo.text = text;
     }
 }
 
@@ -40,16 +96,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn get_default_greeting() {
-        let contract = Contract::default();
-        // this test did not call set_greeting so should return the default "Hello" greeting
-        assert_eq!(contract.get_greeting(), "Hello");
-    }
-
-    #[test]
-    fn set_then_get_greeting() {
-        let mut contract = Contract::default();
-        contract.set_greeting("howdy".to_string());
-        assert_eq!(contract.get_greeting(), "howdy");
+    fn can_add_new_todo() {
+        let mut contract = Contract::new();
+        let new_todo_id = contract.add_todo("Write todo app".to_string());
+        insta::assert_json_snapshot!(contract.list_todos());
     }
 }
